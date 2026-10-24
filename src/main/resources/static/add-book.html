@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Книга</title>
+</head>
+<body>
+<h2 id="h">Добавить книгу</h2>
+
+<p>Название: <input id="title"></p>
+<p>Автор: <input id="author"></p>
+<p>Жанр: <select id="genre"></select></p>
+<button id="saveBtn">сохранить</button>
+
+<script src="app.js"></script>
+<script>
+    nav('add-book.html');
+
+    const id = new URLSearchParams(location.search).get('id');
+    const titleInput = document.getElementById('title');
+    const authorInput = document.getElementById('author');
+    const genreSelect = document.getElementById('genre');
+
+    document.getElementById('saveBtn').onclick = save;
+
+    async function init() {
+      try {
+        const genres = await api('/api/genres');
+        for (const g of genres) {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = g.name;
+          genreSelect.appendChild(opt);
+        }
+      } catch (e) {
+        alert('Ошибка загрузки жанров: ' + e.message);
+        return;
+      }
+
+      if (id) {
+        document.getElementById('h').textContent = 'Изменить книгу #' + id;
+        try {
+          const b = await api('/api/books/' + id);
+          titleInput.value = b.title;
+          authorInput.value = b.author || '';
+          genreSelect.value = b.genre.id;
+        } catch (e) {
+          alert('Ошибка загрузки книги: ' + e.message);
+        }
+      }
+    }
+
+    async function save() {
+      const title = titleInput.value.trim();
+      const author = authorInput.value.trim();
+      const genreId = Number(genreSelect.value);
+
+      if (!title || !genreId) {
+        alert('заполни название и жанр');
+        return;
+      }
+
+      const body = {
+        title: title,
+        author: author === '' ? null : author,
+        genreId: genreId
+      };
+
+      try {
+        if (id) {
+          await api('/api/books/' + id, 'PUT', body);
+        } else {
+          await api('/api/books', 'POST', body);
+        }
+        location.href = 'index.html';
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    init();
+</script>
+</body>
+</html>

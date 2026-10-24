@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Выдачи</title>
+</head>
+<body>
+<h2>Выдать книгу</h2>
+<p>
+    <select id="book"></select>
+    <input id="who" placeholder="кто взял">
+    <button id="borrowBtn">выдать</button>
+</p>
+
+<h2>Вернуть по ID</h2>
+<p>
+    <input id="loanId" type="number" placeholder="ID выдачи">
+    <button id="returnBtn">вернуть</button>
+</p>
+
+<h2>История выдач</h2>
+<p>
+    <label>
+        <input type="checkbox" id="onlyActive"> только активные
+    </label>
+</p>
+
+<table border="1" cellpadding="4" cellspacing="0" id="table">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Книга</th>
+        <th>Кто взял</th>
+        <th>Взята</th>
+        <th>Возвращена</th>
+        <th>Действие</th>
+    </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+</table>
+
+<script src="app.js"></script>
+<script>
+    nav('loans.html');
+
+    const bookSelect = document.getElementById('book');
+    const tbody = document.getElementById('tbody');
+    const onlyActive = document.getElementById('onlyActive');
+
+    document.getElementById('borrowBtn').onclick = borrowBook;
+    document.getElementById('returnBtn').onclick = returnById;
+    onlyActive.onchange = loadLoans;
+
+    async function loadBooks() {
+      bookSelect.innerHTML = '';
+      let books;
+      try {
+        books = await api('/api/books');
+      } catch (e) {
+        alert('Ошибка загрузки книг: ' + e.message);
+        return;
+      }
+
+      const available = books.filter(b => b.available);
+
+      if (available.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'нет доступных книг';
+        bookSelect.appendChild(opt);
+        return;
+      }
+
+      for (const b of available) {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = '#' + b.id + ' — ' + b.title;
+        bookSelect.appendChild(opt);
+      }
+    }
+
+    async function loadLoans() {
+      tbody.innerHTML = '';
+      const url = onlyActive.checked ? '/api/loans?active=true' : '/api/loans';
+
+      let loans;
+      try {
+        loans = await api(url);
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6">Ошибка: ' + e.message + '</td></tr>';
+        return;
+      }
+
+      if (loans.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6">пусто</td></tr>';
+        return;
+      }
+
+      for (const l of loans) {
+        const tr = document.createElement('tr');
+
+        tr.appendChild(cell(l.id));
+        tr.appendChild(cell(l.book
+          ? '#' + l.book.id + ' ' + l.book.title
+          : '— (книга удалена)'));
+        tr.appendChild(cell(l.borrowerName));
+        tr.appendChild(cell(formatDate(l.borrowedAt)));
+        tr.appendChild(cell(l.returnedAt ? formatDate(l.returnedAt) : '—'));
+
+        const actionCell = document.createElement('td');
+        if (l.returnedAt) {
+          actionCell.textContent = 'возвращена';
+        } else {
+          const btn = document.createElement('button');
+          btn.textContent = 'вернуть';
+          btn.onclick = function () {
+            returnLoan(l.id);
+          };
+          actionCell.appendChild(btn);
+        }
+        tr.appendChild(actionCell);
+
+        tbody.appendChild(tr);
+      }
+    }
+
+    function cell(text) {
+      const td = document.createElement('td');
+      td.textContent = text;
+      return td;
+    }
+
+    async function borrowBook() {
+      const bookId = Number(bookSelect.value);
+      const borrowerName = document.getElementById('who').value.trim();
+
+      if (!bookId || !borrowerName) {
+        alert('выбери книгу и введи имя');
+        return;
+      }
+
+      try {
+        const loan = await api('/api/loans/borrow', 'POST', {
+          bookId: bookId,
+          borrowerName: borrowerName
+        });
+        alert('Выдано. ID выдачи = ' + loan.id);
+        document.getElementById('who').value = '';
+        await loadBooks();
+        await loadLoans();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function returnById() {
+      const id = Number(document.getElementById('loanId').value);
+      if (!id) {
+        alert('введи ID выдачи');
+        return;
+      }
+      try {
+        await api('/api/loans/' + id + '/return', 'POST');
+        document.getElementById('loanId').value = '';
+        await loadBooks();
+        await loadLoans();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function returnLoan(id) {
+      if (!confirm('Вернуть выдачу #' + id + '?')) return;
+      try {
+        await api('/api/loans/' + id + '/return', 'POST');
+        await loadBooks();
+        await loadLoans();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    loadBooks();
+    loadLoans();
+</script>
+</body>
+</html>

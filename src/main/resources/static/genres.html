@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Жанры</title>
+</head>
+<body>
+<h2>Жанры</h2>
+
+<p>
+    <input id="name" placeholder="название">
+    <button id="addBtn">добавить</button>
+</p>
+
+<ul id="list"></ul>
+
+<script src="app.js"></script>
+<script>
+    nav('genres.html');
+
+    const list = document.getElementById('list');
+    const nameInput = document.getElementById('name');
+
+    document.getElementById('addBtn').onclick = addGenre;
+
+    async function loadGenres() {
+      list.innerHTML = '';
+      let genres;
+      try {
+        genres = await api('/api/genres');
+      } catch (e) {
+        list.textContent = 'Ошибка: ' + e.message;
+        return;
+      }
+
+      if (genres.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'пусто';
+        list.appendChild(li);
+        return;
+      }
+
+      for (const g of genres) {
+        const li = document.createElement('li');
+        li.textContent = '#' + g.id + ' ' + g.name + ' ';
+
+        const renameBtn = document.createElement('button');
+        renameBtn.textContent = 'изм.';
+        renameBtn.onclick = function () {
+          renameGenre(g.id, g.name);
+        };
+        li.appendChild(renameBtn);
+        li.appendChild(document.createTextNode(' '));
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'удал.';
+        delBtn.onclick = function () {
+          deleteGenre(g.id);
+        };
+        li.appendChild(delBtn);
+
+        list.appendChild(li);
+      }
+    }
+
+    async function addGenre() {
+      const name = nameInput.value.trim();
+      if (!name) {
+        alert('введи название');
+        return;
+      }
+      try {
+        await api('/api/genres', 'POST', { name: name });
+        nameInput.value = '';
+        loadGenres();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function renameGenre(id, oldName) {
+      const name = prompt('Новое название:', oldName);
+      if (name === null) return;
+      const trimmed = name.trim();
+      if (!trimmed) {
+        alert('название не может быть пустым');
+        return;
+      }
+      try {
+        await api('/api/genres/' + id, 'PUT', { name: trimmed });
+        loadGenres();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function deleteGenre(id) {
+      if (!confirm('Удалить жанр #' + id + '?')) return;
+      try {
+        await api('/api/genres/' + id, 'DELETE');
+        loadGenres();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    loadGenres();
+</script>
+</body>
+</html>

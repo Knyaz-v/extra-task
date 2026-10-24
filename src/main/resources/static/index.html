@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Книги</title>
+</head>
+<body>
+<h2>Книги</h2>
+
+<p>
+    Жанр:
+    <select id="filter">
+        <option value="">все</option>
+    </select>
+</p>
+
+<ul id="list"></ul>
+
+<script src="app.js"></script>
+<script>
+    nav('index.html');
+
+    const list = document.getElementById('list');
+    const filter = document.getElementById('filter');
+    filter.onchange = loadBooks;
+
+    async function loadGenres() {
+      try {
+        const genres = await api('/api/genres');
+        for (const g of genres) {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = g.name;
+          filter.appendChild(opt);
+        }
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function loadBooks() {
+      list.innerHTML = '';
+      const gid = filter.value;
+      const url = gid ? '/api/books?genreId=' + gid : '/api/books';
+
+      let books;
+      try {
+        books = await api(url);
+      } catch (e) {
+        list.textContent = 'Ошибка: ' + e.message;
+        return;
+      }
+
+      if (books.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'пусто';
+        list.appendChild(li);
+        return;
+      }
+
+      for (const b of books) {
+        const li = document.createElement('li');
+        li.textContent = '#' + b.id + ' «' + b.title + '» — '
+          + (b.author || '?') + ' [' + (b.genre ? b.genre.name : '?') + '] '
+          + (b.available ? '✅' : '❌') + ' ';
+
+        const editLink = document.createElement('a');
+        editLink.href = 'add-book.html?id=' + b.id;
+        editLink.textContent = 'изм.';
+        li.appendChild(editLink);
+        li.appendChild(document.createTextNode(' '));
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'удал.';
+        delBtn.onclick = function () {
+          deleteBook(b.id);
+        };
+        li.appendChild(delBtn);
+
+        list.appendChild(li);
+      }
+    }
+
+    async function deleteBook(id) {
+      if (!confirm('Удалить книгу #' + id + '?')) return;
+      try {
+        await api('/api/books/' + id, 'DELETE');
+        loadBooks();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    loadGenres().then(loadBooks);
+</script>
+</body>
+</html>
